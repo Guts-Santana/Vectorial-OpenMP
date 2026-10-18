@@ -1,0 +1,20 @@
+###############################
+#  ALIGNER INITIALIZATION     #
+###############################
+
+MASA-OpenMP 1.0.1.1024  -  OpenMP tool for huge sequences alignment
+Linked with MASA - Malleable Architecture for Sequence Aligners - 1.3.9.1024
+University of Brasilia/UnB - Brazil 
+Copyright (c) 2010-2015 Edans Sandes - License GPLv3
+This program comes with ABSOLUTELY NO WARRANTY.
+
+./vectorial-openmp --stage-1 --vector=AvxInt16 --work-dir=Sequences/10k/ Sequences/10k/AF133821.1.fasta Sequences/10k/AY352275.1.fasta
+
+
+===== RUNTIME PARAMETERS =====
+ Grid height: -1
+ Grid width: -1
+ ForkID: -1
+Vectorial-OpenMP max threads: 8
+Vectorial-OpenMP vector type: AvxInt16
+Vectorial-OpenMP F strategy: lazy-f
