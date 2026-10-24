@@ -12,7 +12,8 @@ private:
     Farrar<Backend> farrar;
 
 public:
-    FarrarBlockEngineImpl(const std::string& strategy) : farrar(strategy) {}
+    FarrarBlockEngineImpl(const std::string& strategy, const ScoringScheme& scoring)
+        : farrar(strategy, scoring) {}
 
     virtual score_t alignBlock(const char* query_seg, int q_len,
                                const char* target_seg, int t_len,
@@ -22,9 +23,23 @@ public:
     }
 };
 
+/*
+ * MASA scores (CPUBlockProcessor.hpp) in Farrar's convention. MASA's penalties
+ * are positive and a gap of length k costs DNA_GAP_OPEN + k * DNA_GAP_EXT, while
+ * Farrar's are negative and its gapOpen is the cost of the whole first gap cell.
+ */
+static ScoringScheme masaScoring() {
+    ScoringScheme scoring;
+    scoring.match    = DNA_MATCH;
+    scoring.mismatch = DNA_MISMATCH;
+    scoring.gapOpen  = -DNA_GAP_FIRST;
+    scoring.gapExt   = -DNA_GAP_EXT;
+    return scoring;
+}
+
 template <typename Backend>
 static std::unique_ptr<FarrarBlockEngine> makeEngine(const std::string& strategy) {
-    return std::unique_ptr<FarrarBlockEngine>(new FarrarBlockEngineImpl<Backend>(strategy));
+    return std::unique_ptr<FarrarBlockEngine>(new FarrarBlockEngineImpl<Backend>(strategy, masaScoring()));
 }
 
 const std::vector<std::string>& VectorialCPUBlockProcessor::supportedVectors() {
