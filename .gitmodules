@@ -1,0 +1,5 @@
+[submodule "libs/farrar"]
+	path = libs/farrar
+	url = https://github.com/Guts-Santana/Multi-Architecture--Farrar.git
+	branch = main
+	ignore = untracked

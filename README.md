@@ -4,7 +4,8 @@ MASA-OpenMP (Edans Sandes, UnB) aligns huge DNA sequences with Smith-Waterman by
 splitting the DP matrix into blocks and processing the anti-diagonals of blocks
 in parallel with OpenMP. This version replaces the scalar block kernel
 (`CPUBlockProcessor`) with the **multi-architecture striped Farrar** implementation
-from [`Multi-Architecture/`](Multi-Architecture), so every block is computed with
+from [`libs/farrar/`](libs/farrar) (git submodule tracking the `main`
+branch of [Multi-Architecture--Farrar](https://github.com/Guts-Santana/Multi-Architecture--Farrar)), so every block is computed with
 AVX2 or RISC-V Vector (RVV) instructions.
 
 ## Project layout
@@ -16,24 +17,28 @@ AVX2 or RISC-V Vector (RVV) instructions.
 │   ├── VectorialOpenMPAligner.*          OpenMP block scheduler (from MASA-OpenMP)
 │   ├── VectorialOpenMPAlignerParameters.*  --vector / --f-strategy command line options
 │   └── VectorialCPUBlockProcessor.*      MASA block  ->  Farrar engine (one per thread)
-├── Multi-Architecture/                   Farrar project (also builds the standalone `farrar`)
+├── libs/farrar/                          Farrar project, git submodule (also builds the standalone `farrar`)
 │   ├── include/                          Farrar.hpp, Backend.hpp, Buffer.hpp, AVX/, RVV/
 │   └── src/Farrar.cpp                    the only Farrar source compiled into vectorial-openmp
-├── Sequences/                            test pairs: 10k, 18k, 30k, 50k, 150k, 500k, 1M
+├── Sequences/                            local test pairs (not in git): 10k ... 1M
 └── libs/masa-core/                       MASA core library (stages, I/O, block grid)
 ```
 
 There is a single copy of Farrar. The MASA-specific part (`alignBlock` and its
 helpers) is compiled only when `FARRAR_WITH_MASA` is defined. The top-level
-`Makefile.am` defines it; the standalone `Multi-Architecture` build does not, so
+`Makefile.am` defines it; the standalone Farrar build does not, so
 the standalone `farrar` keeps building without MASA.
 
 ## Building
 
+Farrar is a git submodule, so clone with `--recurse-submodules`, or run
+`git submodule update --init` in an existing clone. To pull new commits from its
+`main` branch: `git submodule update --remote libs/farrar`.
+
 The vector architecture is chosen at configure time:
 
 ```bash
-autoreconf -fi                      # only needed after editing configure.ac / Makefile.am
+autoreconf -fi                      # generates configure / Makefile.in (also for libs/masa-core)
 
 # x86-64 with AVX2 (default)
 ./configure --with-vec-arch=avx
@@ -88,9 +93,10 @@ Scoring: match +1, mismatch −3, gap open 3 + extension 2 (first gap costs 5).
 | 18k | 119 |
 | 30k | 29221 |
 | 50k | 52 |
+| 500k | 48 |
 
 With an AVX build, every combination of `--vector` and `--f-strategy` returns these
-scores. So does the standalone `Multi-Architecture/farrar`.
+scores. So does the standalone `farrar` built from `libs/farrar`.
 
 ---
 

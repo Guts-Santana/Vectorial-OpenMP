@@ -19,6 +19,13 @@ if test ! -d "$srcdir/$LIBMASA_PATH/src"; then
     AC_MSG_ERROR([MASA-Core source directory was not found at $LIBMASA_PATH/src.])
 fi
 
+# Farrar Submodule (https://github.com/Guts-Santana/Multi-Architecture--Farrar)
+FARRAR_PATH="libs/farrar"
+
+if test ! -f "$srcdir/$FARRAR_PATH/src/Farrar.cpp"; then
+    AC_MSG_ERROR([Farrar was not found at $FARRAR_PATH. Run: git submodule update --init])
+fi
+
 # Checks for header files
 AC_CHECK_HEADERS([omp.h], [], [
     AC_MSG_ERROR([Missing required header file <omp.h>.])

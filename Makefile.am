@@ -5,7 +5,7 @@ bin_PROGRAMS = vectorial-openmp
 
 # Farrar (multi-architecture) lives in its own project, shared with the
 # standalone benchmark: only its headers and src/Farrar.cpp are used here
-FARRAR_PATH = Multi-Architecture
+FARRAR_PATH = libs/farrar
 
 # Global Include Paths
 AM_CPPFLAGS = \
@@ -43,7 +43,6 @@ noinst_HEADERS = \
     src/VectorialCPUBlockProcessor.hpp \
     $(FARRAR_PATH)/include/Backend.hpp \
     $(FARRAR_PATH)/include/Buffer.hpp \
-    $(FARRAR_PATH)/include/constants.hpp \
     $(FARRAR_PATH)/include/Farrar.hpp \
     $(FARRAR_PATH)/include/AVX/AvxOps.hpp \
     $(FARRAR_PATH)/include/AVX/AvxTraits.hpp \
