@@ -29,3 +29,4 @@ stamp-h1
 *.a
 /vectorial-openmp
 libs/masa-core/src/common/configs/default.h
+/bin/vectorial-openmp

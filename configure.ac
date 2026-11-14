@@ -3,13 +3,14 @@ AC_INIT([MASA-OpenMP], [1.0.1.1024], [edans.sandes@gmail.com], [masa-openmp], [h
 
 AC_CONFIG_AUX_DIR([admin])
 AC_CONFIG_HEADERS([src/config.h])
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile bin/Makefile])
 
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 
 # Enable C++ compiler checks
 AC_PROG_CXX
 AC_PROG_CC
+AC_PROG_LN_S
 
 # MASA-Core Subdirectory Setup
 AC_CONFIG_SUBDIRS([libs/masa-core])

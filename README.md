@@ -17,6 +17,7 @@ AVX2, RISC-V Vector (RVV) or Arm SVE instructions.
 │   ├── VectorialOpenMPAligner.*          OpenMP block scheduler (from MASA-OpenMP)
 │   ├── VectorialOpenMPAlignerParameters.*  --vector / --f-strategy command line options
 │   └── VectorialCPUBlockProcessor.*      MASA block  ->  Farrar engine (one per thread)
+├── bin/                                  build directory: Makefile.am, object files and the executable
 ├── libs/farrar/                          Farrar project, git submodule (also builds the standalone `farrar`)
 │   ├── include/                          Farrar.hpp, Backend.hpp, Buffer.hpp, AVX/, RVV/, SVE/
 │   └── src/Farrar.cpp                    the only Farrar source compiled into vectorial-openmp
@@ -25,8 +26,8 @@ AVX2, RISC-V Vector (RVV) or Arm SVE instructions.
 ```
 
 There is a single copy of Farrar. The MASA-specific part (`alignBlock` and its
-helpers) is compiled only when `FARRAR_WITH_MASA` is defined. The top-level
-`Makefile.am` defines it; the standalone Farrar build does not, so
+helpers) is compiled only when `FARRAR_WITH_MASA` is defined. `bin/Makefile.am`
+defines it; the standalone Farrar build does not, so
 the standalone `farrar` keeps building without MASA.
 
 ## Building
@@ -54,6 +55,10 @@ CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
     ./configure --host=aarch64-linux-gnu --with-vec-arch=sve
 make
 ```
+
+The program is built in `bin/`, so the object files stay out of `src/` and of
+the Farrar submodule. `make` also creates the link `./vectorial-openmp ->
+bin/vectorial-openmp`, so it can be run from the top directory.
 
 The RVV build adds `-march=rv64gcv -mabi=lp64d`, the SVE build `-march=armv8.2-a+sve`
 and the AVX build `-mavx2 -malign-double`.
