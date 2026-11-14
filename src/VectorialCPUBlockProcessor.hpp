@@ -3,6 +3,7 @@
 
 #include "AbstractBlockProcessor.hpp"
 #include "CPUBlockProcessor.hpp"
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,6 +21,12 @@ public:
                                const char* target_seg, int t_len,
                                cell_t* row, cell_t* col,
                                int abs_i, int abs_j) = 0;
+
+    /* Only the adaptive engines count anything */
+    virtual bool isAdaptive() const { return false; }
+    virtual long long getInt16Blocks() const { return 0; }
+    virtual long long getInt32Blocks() const { return 0; }
+    virtual long long getPeakInt16Bound() const { return 0; }
 };
 
 class VectorialCPUBlockProcessor : public AbstractBlockProcessor {
@@ -60,6 +67,9 @@ public:
 
     static std::unique_ptr<FarrarBlockEngine> createEngine(const std::string& vector,
                                                            const std::string& strategy);
+
+    /* Adaptive-precision statistics, summed over the thread engines */
+    void printAdaptiveStatistics(FILE* file) const;
 };
 
 #endif /* VECTORIAL_CPU_BLOCK_PROCESSOR */

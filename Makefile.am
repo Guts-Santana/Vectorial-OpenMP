@@ -19,13 +19,17 @@ AM_CPPFLAGS = \
 vectorial_openmp_CXXFLAGS = -std=gnu++17 -fno-strict-aliasing
 vectorial_openmp_LDADD    = $(LIBMASA_PATH)/libmasa.a -lpthread -lgomp
 
-# Architecture-Specific Flags (./configure --with-vec-arch=avx|rvv)
+# Architecture-Specific Flags (./configure --with-vec-arch=avx|rvv|sve)
 if USE_AVX
 vectorial_openmp_CXXFLAGS += -mavx2 -malign-double
 endif
 
 if USE_RVV
 vectorial_openmp_CXXFLAGS += -march=rv64gcv -mabi=lp64d
+endif
+
+if USE_SVE
+vectorial_openmp_CXXFLAGS += -march=armv8.2-a+sve
 endif
 
 # Source Files
@@ -47,7 +51,9 @@ noinst_HEADERS = \
     $(FARRAR_PATH)/include/AVX/AvxOps.hpp \
     $(FARRAR_PATH)/include/AVX/AvxTraits.hpp \
     $(FARRAR_PATH)/include/RVV/RvvOps.hpp \
-    $(FARRAR_PATH)/include/RVV/RvvTraits.hpp
+    $(FARRAR_PATH)/include/RVV/RvvTraits.hpp \
+    $(FARRAR_PATH)/include/SVE/SveOps.hpp \
+    $(FARRAR_PATH)/include/SVE/SveTraits.hpp
 
 dist_doc_DATA = README.md
 

@@ -29,12 +29,17 @@ public:
 	VectorialOpenMPAligner(AbstractBlockProcessor* blockProcessor = NULL, BlockAlignerParameters* params = NULL);
 	virtual ~VectorialOpenMPAligner();
 	virtual void printInitialStatistics(FILE* file);
+	virtual void printStatistics(FILE* file);
 
 protected:
 	virtual void scheduleBlocks(int grid_width, int grid_height);
 	virtual void alignBlock(int bx, int by, int i0, int j0, int i1, int j1);
 
 	virtual void increaseBlockStat(const bool pruned);
+
+private:
+	/* Same object as AbstractBlockAligner::blockProcessor (private there) */
+	AbstractBlockProcessor* vectorialProcessor;
 };
 
 #endif /* VECTORIAL_OPENMP_ALIGNER */

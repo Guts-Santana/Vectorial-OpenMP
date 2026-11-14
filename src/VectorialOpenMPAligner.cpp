@@ -21,10 +21,11 @@
 
 #include "VectorialOpenMPAligner.hpp"
 #include "VectorialOpenMPAlignerParameters.hpp"
+#include "VectorialCPUBlockProcessor.hpp"
 #include <omp.h>
 
 VectorialOpenMPAligner::VectorialOpenMPAligner(AbstractBlockProcessor* blockProcessor, BlockAlignerParameters* params)
-		: AbstractBlockAligner(blockProcessor, params) {
+		: AbstractBlockAligner(blockProcessor, params), vectorialProcessor(blockProcessor) {
 	setPreferredSizes(0, omp_get_max_threads()*2);
 }
 
@@ -123,5 +124,18 @@ void VectorialOpenMPAligner::printInitialStatistics(FILE* file) {
 	if (params != NULL) {
 		fprintf(file, "Vectorial-OpenMP vector type: %s\n", params->getVector().c_str());
 		fprintf(file, "Vectorial-OpenMP F strategy: %s\n", params->getFStrategy().c_str());
+	}
+}
+
+/**
+ * Prints the pruning statistics plus, for the adaptive vector types, how many
+ * blocks ran in int16 and in int32.
+ * @see IAligner::printStatistics
+ */
+void VectorialOpenMPAligner::printStatistics(FILE* file) {
+	AbstractBlockAligner::printStatistics(file);
+	const VectorialCPUBlockProcessor* processor = dynamic_cast<const VectorialCPUBlockProcessor*>(vectorialProcessor);
+	if (processor != NULL) {
+		processor->printAdaptiveStatistics(file);
 	}
 }

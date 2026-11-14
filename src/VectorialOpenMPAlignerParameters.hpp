@@ -27,7 +27,8 @@
 
 /**
  * Block aligner parameters plus the Farrar specific ones:
- *   --vector=TYPE        vector backend (AvxInt16, AvxInt32, RvvInt16M1 ... RvvInt32M8)
+ *   --vector=TYPE        vector backend (AvxInt16, AvxInt32, AvxAdaptive, RvvInt16M1 ...
+ *                        RvvInt32M8, RvvAdaptiveM1 ... M8, SveInt16, SveInt32, SveAdaptive)
  *   --f-strategy=TYPE    F propagation strategy (lazy-f, prefix-scan-f)
  */
 class VectorialOpenMPAlignerParameters : public BlockAlignerParameters {
