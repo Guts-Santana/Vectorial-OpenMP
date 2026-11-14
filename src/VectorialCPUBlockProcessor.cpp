@@ -49,12 +49,20 @@ static std::unique_ptr<FarrarBlockEngine> makeEngine(const std::string& strategy
  * Adaptive precision: before each block, decide whether it can run in int16
  * lanes (after rebasing the scores by a bias b) or must run in int32.
  *
- * Lower bound b. Only the corner H(0,0) = col[0].h is trusted. The path
- *   corner -> diagonal into (1,1) -> horizontal gap along row 1 -> vertical gap
- * reaches every cell (i,j) of the R x C block, and the worst cell is (R,C):
- *   H(i,j) >= corner + mismatch + 2*gapOpen + (R+C-4)*gapExt
+ * Lower bound b. Only the corner H(0,0) = col[0].h is trusted: it is the only
+ * boundary cell from which a path reaches every cell (i,j) of the R x C block.
+ * H(i,j) is the max over all paths, so any path, scored as if every diagonal
+ * step were a mismatch, gives a floor. Two paths are used:
+ *   gaps: corner -> one diagonal step -> gap along row 1 -> gap down the column
+ *         H >= corner + mismatch + 2*gapOpen + (R+C-4)*gapExt   (worst (R,C))
+ *   diag: corner -> min(i,j) diagonal steps -> one gap of |i-j| cells
+ *         H >= corner + mismatch*min(R,C) + gapOpen + max(|R-C|-1,0)*gapExt
  * (Farrar's convention: a gap of length k costs gapOpen + (k-1)*gapExt).
- * With b = max(0, that bound), every H of the block is >= b, so the lanes
+ * The worst cell of each path is taken (one b for the whole block) and the
+ * higher of the two floors is kept. With MASA's scores the diagonal one wins
+ * (3 per diagonal step < 2*2 for a row plus a column of gap): c - 3077
+ * instead of c - 4101 for 1024 x 1024 blocks.
+ * With b = max(0, both floors), every H of the block is >= b, so the lanes
  * hold H - b >= 0 and the SW floor max(0, .) of the lanes never binds where
  * the real floor would not: the kernel stays exact unchanged.
  *
@@ -112,9 +120,26 @@ public:
                 bmax = std::max<long long>(bmax, std::max(row[j].h, row[j].f));
             }
 
-            const long long lower = corner + std::min(scoring.mismatch, scoring.match)
-                                  + 2LL * scoring.gapOpen + (R + C - 4) * scoring.gapExt;
-            const long long b = std::max(0LL, lower);
+            const long long x = std::min(scoring.mismatch, scoring.match);
+            const long long go = scoring.gapOpen;
+            const long long ge = scoring.gapExt;
+            const long long minRC = std::min(R, C);
+            const long long maxRC = std::max(R, C);
+
+            // Path 1: one mismatch, a gap along row 1, a gap down the column.
+            // Worst cell: (R,C).
+            const long long lowerGaps = corner + x + 2 * go + (R + C - 4) * ge;
+
+            // Path 2: k = min(i,j) mismatches on the diagonal, then one gap of
+            // d = |i-j| cells (g_o is charged even when d = 0, as a safe margin).
+            // The worst cell is k = min(R,C), d = |R-C|, or k = 1, d = max(R,C)-1
+            // (the second only wins for unusual scores, with |x| < |g_e|).
+            const long long lowerDiag = corner + go + std::min(
+                    x * minRC + std::max(maxRC - minRC - 1, 0LL) * ge,
+                    x + (maxRC - 2) * ge);
+
+            // Both are valid floors: keep the higher one
+            const long long b = std::max({0LL, lowerGaps, lowerDiag});
             const long long bound = std::max(bmax - b, 0LL) + scoring.match * std::min(R, C);
 
             if (bound <= LIMIT) {
@@ -295,6 +320,6 @@ void VectorialCPUBlockProcessor::printAdaptiveStatistics(FILE* file) const {
     fprintf(file, "   int16 blocks: %lld (%.2f%%)\n", int16Blocks,
             total ? 100.0 * int16Blocks / total : 0.0);
     fprintf(file, "   int32 blocks: %lld\n", int32Blocks);
-    fprintf(file, "   Peak int16 bound: %lld (limit %d)\n", peakBound, INT16_MAX);
+    fprintf(file, "   Peak int16 bound: %lld (limit %d)\n", peakBound, INT16_MAX - 128);
     fflush(file);
 }
