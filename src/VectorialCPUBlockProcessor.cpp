@@ -199,14 +199,14 @@ bool VectorialCPUBlockProcessor::isSupportedVector(const std::string& vector) {
 }
 
 std::string VectorialCPUBlockProcessor::defaultVector() {
-    // 32-bit lanes: MASA carries the scores across blocks, so for long
-    // sequences they quickly overflow int16 (max 32767)
+    // Adaptive precision: int16 lanes when the rebased block fits, int32
+    // otherwise. Same results as the Int32 types at about the int16 speed
 #if defined(USE_AVX)
-    return "AvxInt32";
+    return "AvxAdaptive";
 #elif defined(USE_SVE)
-    return "SveInt32";
+    return "SveAdaptive";
 #else
-    return "RvvInt32M1";
+    return "RvvAdaptiveM1";
 #endif
 }
 
@@ -226,7 +226,7 @@ std::string VectorialCPUBlockProcessor::defaultFStrategy() {
 std::string VectorialCPUBlockProcessor::defaultNwFStrategy() {
     // In NW the cells below the alignment are reached through long vertical
     // gaps, so lazy-f sweeps most of every column: prefix-scan-f is ~2.8x faster
-    // in stage 2 on the 1M pair (lazy-f is the faster one for SW, in stage 1)
+    // in stage 2 on the 1M pair
     return "prefix-scan-f";
 }
 

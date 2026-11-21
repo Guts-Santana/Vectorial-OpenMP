@@ -71,8 +71,8 @@ and the AVX build `-mavx2 -malign-double`.
 
 | Option | Values | Default |
 |---|---|---|
-| `--vector` | AVX build: `AvxInt16`, `AvxInt32`, `AvxAdaptive`<br>RVV build: `RvvInt16M1`, `RvvInt16M2`, `RvvInt16M4`, `RvvInt16M8`, `RvvInt32M1`, `RvvInt32M2`, `RvvInt32M4`, `RvvInt32M8`, `RvvAdaptiveM1`, `RvvAdaptiveM2`, `RvvAdaptiveM4`, `RvvAdaptiveM8`<br>SVE build: `SveInt16`, `SveInt32`, `SveAdaptive` | `AvxInt32` / `RvvInt32M1` / `SveInt32` |
-| `--f-strategy` | F strategy of the Smith-Waterman blocks (stage 1): `lazy-f` (alias `lazy`), `prefix-scan-f` (alias `prefix`) | `lazy-f` |
+| `--vector` | AVX build: `AvxInt16`, `AvxInt32`, `AvxAdaptive`<br>RVV build: `RvvInt16M1`, `RvvInt16M2`, `RvvInt16M4`, `RvvInt16M8`, `RvvInt32M1`, `RvvInt32M2`, `RvvInt32M4`, `RvvInt32M8`, `RvvAdaptiveM1`, `RvvAdaptiveM2`, `RvvAdaptiveM4`, `RvvAdaptiveM8`<br>SVE build: `SveInt16`, `SveInt32`, `SveAdaptive` | `AvxAdaptive` / `RvvAdaptiveM1` / `SveAdaptive` |
+| `--f-strategy` | F strategy of the Smith-Waterman blocks (stage 1): `lazy-f` (alias `lazy`), `prefix-scan-f` (alias `prefix`) | `prefix-scan-f` |
 | `--nw-f-strategy` | F strategy of the Needleman-Wunsch blocks (stages 2 and 3): same values | `prefix-scan-f` |
 
 `./vectorial-openmp --help` lists the vector types available in the current build.
@@ -92,8 +92,8 @@ Example:
 > **16-bit lanes.** MASA carries the H values across blocks, so a block's
 > boundary can hold scores as large as the global best score. With 16-bit
 > lanes the limit is 32767: the 30k pair already reaches 29221. Use the
-> `Int32` types (the default) for long sequences. The `Int16` types only make
-> sense when you know the score stays well below 32767.
+> `Adaptive` types (the default) or the `Int32` types for long sequences. The
+> `Int16` types only make sense when you know the score stays well below 32767.
 
 ### Adaptive precision (`*Adaptive`)
 
@@ -241,8 +241,8 @@ hold `score - b`, and `b` is added back when the values leave the block.
   (int16 blocks, int32 blocks, largest bound seen).
 - `configure.ac` / `Makefile.am`: `--with-vec-arch=sve` adds `-march=armv8.2-a+sve`
   and the SVE headers. The SVE build has not been run here (no Arm hardware).
-- `.gitmodules`: `libs/farrar` tracks the `adaptive-precision` branch of Farrar,
-  which has the `bias` parameter.
+- `.gitmodules`: `libs/farrar` tracks the `main` branch of Farrar, which has
+  the `bias` parameter and NW (merged from its `adaptive-precision` branch).
 
 **Results (AVX2, 8 threads, WSL).** 10k-150k, full pipeline: `AvxInt16`,
 `AvxInt32` and `AvxAdaptive` give the same stage-1 best, position and final
@@ -319,7 +319,12 @@ still `>= b`, so the lanes hold `H - b >= 0` and the same int16 test applies.
   alignment are reached through long vertical gaps, so lazy-F sweeps most of
   every column and is slower than the scalar code; in SW those cells hit the 0
   floor. Stage 2 on the 1M pair: scalar 2.40 s, lazy-f 3.41 s, prefix-scan-f
-  0.87 s (mean of 3 runs). Stage 1 keeps `lazy-f`.
+  0.87 s (mean of 3 runs).
+- Defaults: `--vector` is now the adaptive type of the build (`AvxAdaptive`,
+  `RvvAdaptiveM1`, `SveAdaptive`) and `--f-strategy` is `prefix-scan-f`.
+  For SW blocks, prefix-scan-f is slower than lazy-f in stage 1
+  (`AvxAdaptive`, 2 runs: 150k 1.38 s vs 0.73 s, 500k 13.3 s vs 7.0 s, same
+  scores); pass `--f-strategy=lazy-f` for the faster stage 1.
 
 **Results.** Full pipeline (stages 1-6), `--ram-size=1G`, 1 run per line,
 against the previous build (scalar NW): `alignment.00.bin` and the summary are
