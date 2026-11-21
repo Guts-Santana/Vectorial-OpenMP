@@ -1,40 +1,9 @@
-AUTOMAKE_OPTIONS = subdir-objects
-SUBDIRS = $(LIBMASA_PATH)
 
-bin_PROGRAMS = vectorial-openmp
+# libmasa first, then bin/ (vectorial-openmp is built there, so the object
+# files stay out of src/)
+SUBDIRS = $(LIBMASA_PATH) bin
 
-# Farrar (multi-architecture) lives in its own project, shared with the
-# standalone benchmark: only its headers and src/Farrar.cpp are used here
 FARRAR_PATH = libs/farrar
-
-# Global Include Paths
-AM_CPPFLAGS = \
-    -I$(top_srcdir)/src \
-    -I$(top_srcdir)/$(FARRAR_PATH)/include \
-    -I$(top_srcdir)/$(LIBMASA_PATH)/src \
-    -I$(top_srcdir)/$(LIBMASA_PATH)/src/libmasa/processors \
-    -DFARRAR_WITH_MASA
-
-# Base Compiler & Linker Flags
-vectorial_openmp_CXXFLAGS = -std=gnu++17 -fno-strict-aliasing
-vectorial_openmp_LDADD    = $(LIBMASA_PATH)/libmasa.a -lpthread -lgomp
-
-# Architecture-Specific Flags (./configure --with-vec-arch=avx|rvv)
-if USE_AVX
-vectorial_openmp_CXXFLAGS += -mavx2 -malign-double
-endif
-
-if USE_RVV
-vectorial_openmp_CXXFLAGS += -march=rv64gcv -mabi=lp64d
-endif
-
-# Source Files
-vectorial_openmp_SOURCES = \
-    src/main.cpp \
-    src/VectorialOpenMPAligner.cpp \
-    src/VectorialOpenMPAlignerParameters.cpp \
-    src/VectorialCPUBlockProcessor.cpp \
-    $(FARRAR_PATH)/src/Farrar.cpp
 
 # Headers (Ensures they are included in source distributions)
 noinst_HEADERS = \
@@ -47,9 +16,18 @@ noinst_HEADERS = \
     $(FARRAR_PATH)/include/AVX/AvxOps.hpp \
     $(FARRAR_PATH)/include/AVX/AvxTraits.hpp \
     $(FARRAR_PATH)/include/RVV/RvvOps.hpp \
-    $(FARRAR_PATH)/include/RVV/RvvTraits.hpp
+    $(FARRAR_PATH)/include/RVV/RvvTraits.hpp \
+    $(FARRAR_PATH)/include/SVE/SveOps.hpp \
+    $(FARRAR_PATH)/include/SVE/SveTraits.hpp
 
 dist_doc_DATA = README.md
+
+# Keep ./vectorial-openmp working from the top directory
+all-local:
+	@$(LN_S) -f bin/vectorial-openmp vectorial-openmp
+
+clean-local:
+	-rm -f vectorial-openmp
 
 # Symlink helper targets for distribution builds
 dist-clone-link:

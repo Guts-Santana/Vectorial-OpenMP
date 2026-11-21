@@ -27,8 +27,10 @@
 
 /**
  * Block aligner parameters plus the Farrar specific ones:
- *   --vector=TYPE        vector backend (AvxInt16, AvxInt32, RvvInt16M1 ... RvvInt32M8)
- *   --f-strategy=TYPE    F propagation strategy (lazy-f, prefix-scan-f)
+ *   --vector=TYPE        vector backend (AvxInt16, AvxInt32, AvxAdaptive, RvvInt16M1 ...
+ *                        RvvInt32M8, RvvAdaptiveM1 ... M8, SveInt16, SveInt32, SveAdaptive)
+ *   --f-strategy=TYPE    F propagation strategy of the SW blocks (lazy-f, prefix-scan-f)
+ *   --nw-f-strategy=TYPE F propagation strategy of the NW blocks (stages 2 and 3)
  */
 class VectorialOpenMPAlignerParameters : public BlockAlignerParameters {
 public:
@@ -40,10 +42,12 @@ public:
 
 	const std::string& getVector() const;
 	const std::string& getFStrategy() const;
+	const std::string& getNwFStrategy() const;
 
 private:
 	std::string vector;
 	std::string fStrategy;
+	std::string nwFStrategy;
 };
 
 #endif /* VECTORIAL_OPENMP_ALIGNER_PARAMETERS */
