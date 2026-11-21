@@ -23,6 +23,7 @@
 #define VECTORIAL_OPENMP_ALIGNER
 
 #include "libmasa/libmasa.hpp"
+#include "Farrar.hpp"
 
 class VectorialOpenMPAligner : public AbstractBlockAligner {
 public:
@@ -38,6 +39,9 @@ protected:
 	virtual void increaseBlockStat(const bool pruned);
 
 private:
+	void fillPrunedBorders(cell_t* blockRow, cell_t* blockCol, int R, int C,
+	                       AlignmentType type);
+
 	/* Same object as AbstractBlockAligner::blockProcessor (private there) */
 	AbstractBlockProcessor* vectorialProcessor;
 };

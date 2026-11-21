@@ -32,16 +32,19 @@
  */
 #define ARG_VECTOR       0x2001
 #define ARG_F_STRATEGY   0x2002
+#define ARG_NW_F_STRATEGY 0x2003
 
 static struct option long_options[] = {
         {"vector",       required_argument,      0, ARG_VECTOR},
         {"f-strategy",   required_argument,      0, ARG_F_STRATEGY},
+        {"nw-f-strategy", required_argument,     0, ARG_NW_F_STRATEGY},
         {0, 0, 0, 0}
     };
 
 VectorialOpenMPAlignerParameters::VectorialOpenMPAlignerParameters()
 	: vector(VectorialCPUBlockProcessor::defaultVector()),
-	  fStrategy(VectorialCPUBlockProcessor::defaultFStrategy())
+	  fStrategy(VectorialCPUBlockProcessor::defaultFStrategy()),
+	  nwFStrategy(VectorialCPUBlockProcessor::defaultNwFStrategy())
 {
 }
 
@@ -60,8 +63,12 @@ void VectorialOpenMPAlignerParameters::printUsage() const {
 		usage << " " << v;
 	}
 	usage << ".\n"
-	      << "--f-strategy=TYPE            F propagation strategy: lazy-f or prefix-scan-f.\n"
-	      << "                                Default: " << VectorialCPUBlockProcessor::defaultFStrategy() << ".";
+	      << "--f-strategy=TYPE            F propagation strategy of the Smith-Waterman\n"
+	      << "                                blocks (stage 1): lazy-f or prefix-scan-f.\n"
+	      << "                                Default: " << VectorialCPUBlockProcessor::defaultFStrategy() << ".\n"
+	      << "--nw-f-strategy=TYPE         F propagation strategy of the Needleman-Wunsch\n"
+	      << "                                blocks (stages 2 and 3): lazy-f or prefix-scan-f.\n"
+	      << "                                Default: " << VectorialCPUBlockProcessor::defaultNwFStrategy() << ".";
 	AbstractAlignerParameters::printFormattedUsage(USAGE_HEADER, usage.str().c_str());
 }
 
@@ -87,6 +94,13 @@ int VectorialOpenMPAlignerParameters::processArgument(int argc, char** argv) {
 			}
 			fStrategy = VectorialCPUBlockProcessor::normalizeFStrategy(optarg);
 			return ARGUMENT_OK;
+		case ARG_NW_F_STRATEGY:
+			if (!VectorialCPUBlockProcessor::isSupportedFStrategy(optarg)) {
+				setLastError("NW F strategy must be lazy-f or prefix-scan-f.");
+				return ARGUMENT_ERROR;
+			}
+			nwFStrategy = VectorialCPUBlockProcessor::normalizeFStrategy(optarg);
+			return ARGUMENT_OK;
 		case ARGUMENT_ERROR_NOT_FOUND:
 			// Not one of ours: let the block aligner parameters try it
 			return BlockAlignerParameters::processArgument(argc, argv);
@@ -101,4 +115,8 @@ const std::string& VectorialOpenMPAlignerParameters::getVector() const {
 
 const std::string& VectorialOpenMPAlignerParameters::getFStrategy() const {
 	return fStrategy;
+}
+
+const std::string& VectorialOpenMPAlignerParameters::getNwFStrategy() const {
+	return nwFStrategy;
 }

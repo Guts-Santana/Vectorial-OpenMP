@@ -66,18 +66,19 @@ and the AVX build `-mavx2 -malign-double`.
 ## Running
 
 ```bash
-./vectorial-openmp [MASA options] [--vector=TYPE] [--f-strategy=TYPE] seq0.fasta seq1.fasta
+./vectorial-openmp [MASA options] [--vector=TYPE] [--f-strategy=TYPE] [--nw-f-strategy=TYPE] seq0.fasta seq1.fasta
 ```
 
 | Option | Values | Default |
 |---|---|---|
 | `--vector` | AVX build: `AvxInt16`, `AvxInt32`, `AvxAdaptive`<br>RVV build: `RvvInt16M1`, `RvvInt16M2`, `RvvInt16M4`, `RvvInt16M8`, `RvvInt32M1`, `RvvInt32M2`, `RvvInt32M4`, `RvvInt32M8`, `RvvAdaptiveM1`, `RvvAdaptiveM2`, `RvvAdaptiveM4`, `RvvAdaptiveM8`<br>SVE build: `SveInt16`, `SveInt32`, `SveAdaptive` | `AvxInt32` / `RvvInt32M1` / `SveInt32` |
-| `--f-strategy` | `lazy-f` (alias `lazy`), `prefix-scan-f` (alias `prefix`) | `lazy-f` |
+| `--f-strategy` | F strategy of the Smith-Waterman blocks (stage 1): `lazy-f` (alias `lazy`), `prefix-scan-f` (alias `prefix`) | `lazy-f` |
+| `--nw-f-strategy` | F strategy of the Needleman-Wunsch blocks (stages 2 and 3): same values | `prefix-scan-f` |
 
 `./vectorial-openmp --help` lists the vector types available in the current build.
 An invalid value stops the program with a clear message. The chosen
 configuration is written to the statistics file (`Vectorial-OpenMP vector type`,
-`Vectorial-OpenMP F strategy`). All the usual MASA options (`--block-size`, `--grid-size`,
+`Vectorial-OpenMP F strategy`, `Vectorial-OpenMP NW F strategy`). All the usual MASA options (`--block-size`, `--grid-size`,
 `-d`, `-c`, stages, ...) still work.
 
 Example:
@@ -148,7 +149,7 @@ F strategies, 16 and 32 bits). The block score, every `row[].h/f`, every
 | 10 | Prefix-scan-F: consecutive lanes are `segLen` rows apart, but the decay was `offset * gap_ext`. AVX `slideup` also fills the vacated lanes with 0, which acted as a fake F of 0. *Both were also in the original code.* | Decay is `offset * segLen * gap_ext`, and the vacated lanes are masked to `LOW`. |
 | 11 | When F raised H, the E prepared for the next column was not updated. | Both F strategies update `pvE` (block path). |
 | 12 | `VectorialOpenMPAligner` calls `processBlock` from an `omp parallel for`, but all threads shared one `Farrar` and its buffers (a data race). | One Farrar engine per OpenMP thread. |
-| 13 | NW requests (`recurrenceType != SMITH_WATERMAN`) went to Farrar, which always clamps scores at 0 (SW only). | They are handed to `CPUBlockProcessor`. |
+| 13 | NW requests (`recurrenceType != SMITH_WATERMAN`) went to Farrar, which always clamps scores at 0 (SW only). | They are handed to `CPUBlockProcessor`. Since [Part 5](#part-5-exact-borders-for-pruned-blocks-and-needleman-wunsch-in-farrar), Farrar runs NW itself. |
 | 14 | `alignBlock` called `setSequences(query_seg, target_seg)`, copying the whole rest of both sequences into `std::string` on every block. `exit;` did nothing. | The copy is removed; `exit(1)`. |
 
 ### Part 2: build options, runtime options and cleanup
@@ -280,3 +281,61 @@ runs (standard deviation 0.1-1.2 s). Original MASA-OpenMP 1.0.1.1024 (scalar
 - With `--disk-size=8G` the wall time is dominated by writing ~7.7 GB of special
   rows to disk (45-115 s depending on what ran before), so kernel timings use
   `--ram-size` only.
+
+### Part 5: exact borders for pruned blocks, and Needleman-Wunsch in Farrar
+
+**Pruned blocks.** MASA writes nothing to `row[]`/`col[]` for a pruned block,
+so the blocks below and to its right read values of an older block. On the 1M
+pair the 59 blocks that still needed int32 all had a real top row of 30k-86k
+next to a corner and left column of ~0 left behind by a pruned neighbour (the
+same block without pruning has a corner of 30719 and a bound of 6410).
+`VectorialOpenMPAligner::fillPrunedBorders` now writes lower bounds for a
+pruned block, never above the real values:
+
+- corner of the next block: the pruned block's top-right input, as a computed
+  block passes on;
+- bottom row and right column: a gap from the input above / on the left;
+- every H: also the corner floor (`cornerLowerBound`), and 0 in SW only.
+
+The pruning only reads the block scores, so the same blocks are pruned.
+
+| Pair (stage 1, pruning on) | int32 blocks before | after | largest bound before | after |
+|---|---|---|---|---|
+| 1M | 59 | 0 | 31412 | 7138 |
+| 5M | 2303 | 0 | 32045 | 7173 |
+
+**Needleman-Wunsch.** Stages 2 and 3 run NW blocks, which used to go to
+MASA's scalar `CPUBlockProcessor`. Farrar now runs both recurrences with one
+kernel. The only difference inside it is the floor of `H`: `0` for SW, `LOW`
+for NW (it only stops the adds from wrapping). In the adaptive engine NW uses
+`b = cornerLowerBound(...)` without the `max(0, .)`: every H of the block is
+still `>= b`, so the lanes hold `H - b >= 0` and the same int16 test applies.
+
+- `libs/farrar`: `AlignmentType` (`Local` / `Global`), `cornerLowerBound`,
+  `alignBlock(..., bias, type)`, `setFStrategy`. The standalone `farrar` has a
+  new `-a, --alignment=sw|nw` option (see its README).
+- `src/VectorialCPUBlockProcessor.*`: SW and NW blocks both go to Farrar.
+- `--nw-f-strategy` (default `prefix-scan-f`). In NW the cells below the
+  alignment are reached through long vertical gaps, so lazy-F sweeps most of
+  every column and is slower than the scalar code; in SW those cells hit the 0
+  floor. Stage 2 on the 1M pair: scalar 2.40 s, lazy-f 3.41 s, prefix-scan-f
+  0.87 s (mean of 3 runs). Stage 1 keeps `lazy-f`.
+
+**Results.** Full pipeline (stages 1-6), `--ram-size=1G`, 1 run per line,
+against the previous build (scalar NW): `alignment.00.bin` and the summary are
+identical for 10k-1M, pruning on and off, `AvxAdaptive` and `AvxInt32` (28 of
+28 pairs). Stages 2 and 3 in ms:
+
+| Pair | Pruning | Vector | Stage 2 before | after | Stage 3 before | after |
+|---|---|---|---|---|---|---|
+| 500k | on | `AvxAdaptive` | 349 | 157 | 0.7 | 0.7 |
+| 500k | on | `AvxInt32` | 374 | 231 | 0.7 | 0.7 |
+| 1M | on | `AvxAdaptive` | 2328 | 906 | 286 | 173 |
+| 1M | on | `AvxInt32` | 2395 | 1298 | 347 | 198 |
+| 1M | off | `AvxAdaptive` | 2333 | 768 | 351 | 142 |
+| 1M | off | `AvxInt32` | 2327 | 984 | 437 | 168 |
+
+Stages 2 and 3 run in int16 for every block but one (10k, stage 3). On the
+smaller pairs stage 2 takes a few tens of ms and single runs vary by up to 2x.
+Stage-2 blocks are only 128 x 136 cells, which is the size MASA chooses for
+these narrow partitions.

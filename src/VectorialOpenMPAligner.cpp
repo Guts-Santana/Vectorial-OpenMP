@@ -67,7 +67,11 @@ void VectorialOpenMPAligner::alignBlock(int bx, int by, int i0, int j0, int i1, 
 	 * See the input/output parameters description in the function implementation.
 	 */
 	if (!mustContinue()) return; // MASA-core is telling to stop
-	AbstractBlockAligner::processBlock(bx, by, i0, j0, i1, j1);
+	if (!AbstractBlockAligner::processBlock(bx, by, i0, j0, i1, j1)) {
+		/* Pruned: MASA writes nothing, so write lower bounds for the next blocks */
+		fillPrunedBorders(row[bx], col[by], i1 - i0, j1 - j0,
+				toAlignmentType(getRecurrenceType()));
+	}
 
 	/*
 	 * Dispatch special rows with a minimum defined distance (getSpecialRowInterval()).
@@ -103,6 +107,57 @@ void VectorialOpenMPAligner::alignBlock(int bx, int by, int i0, int j0, int i1, 
 }
 
 /*
+ * Borders left by a pruned block of R x C cells (SW or NW).
+ *
+ * MASA does not touch row[]/col[] for a pruned block, so the blocks below and to
+ * its right would read values of an older block: a corner near 0 next to a top
+ * row of 80000, which forces the adaptive engine into int32 (and is not even
+ * guaranteed to be below the real value). Here every value written is a lower
+ * bound of the real one, given inputs that are lower bounds themselves:
+ *   - corner of the next block (col[0]): the top-right input row[C-1].h, the
+ *     same value a computed block passes on;
+ *   - bottom row: a gap down from the input above, R cells;
+ *                 a gap along the row from the bottom-left input col[R].h;
+ *   - right column: a gap along the row from the input on the left, C cells;
+ *                   a gap down from the top-right input row[C-1].h;
+ *   - every H: also the corner floor (cornerLowerBound) and, in SW only, 0.
+ * The pruning itself only reads the block scores, so it does not change, and a
+ * value that is never above the real one cannot make an alignment look better.
+ */
+void VectorialOpenMPAligner::fillPrunedBorders(cell_t* blockRow, cell_t* blockCol, int R, int C,
+		AlignmentType type) {
+	const ScoringScheme scoring = masaScoring();
+	const long long go = scoring.gapOpen; // first gap cell
+	const long long ge = scoring.gapExt;  // each extra gap cell
+	const long long NEG = -INF;
+
+	const long long corner = blockCol[0].h;
+	const long long topRight = blockRow[C - 1].h;    // H(i0-1, j1-1)
+	const long long bottomLeft = blockCol[R].h;      // H(i1-1, j0-1)
+	long long floor = std::max(NEG, cornerLowerBound(corner, R, C, scoring));
+	if (type == AlignmentType::Local)
+		floor = std::max(floor, 0LL);
+
+	/* Bottom row: F from the gap down, H also from the gap along the row */
+	for (int j = 0; j < C; ++j) {
+		const long long f = std::max(NEG, blockRow[j].h + go + (R - 1) * ge);
+		const long long e = bottomLeft + go + j * ge;
+		blockRow[j].h = static_cast<int>(std::max({floor, f, e}));
+		blockRow[j].f = static_cast<int>(f);
+	}
+
+	/* Right column: E from the gap along the row, H also from the gap down */
+	for (int i = 1; i <= R; ++i) {
+		const long long e = std::max(NEG, blockCol[i].h + go + (C - 1) * ge);
+		const long long f = topRight + go + (i - 1) * ge;
+		blockCol[i].h = static_cast<int>(std::max({floor, e, f}));
+		blockCol[i].e = static_cast<int>(e);
+	}
+
+	blockCol[0].h = static_cast<int>(topRight);
+}
+
+/*
  * Changes statistics in a safe way.
  */
 void VectorialOpenMPAligner::increaseBlockStat(const bool pruned) {
@@ -124,6 +179,7 @@ void VectorialOpenMPAligner::printInitialStatistics(FILE* file) {
 	if (params != NULL) {
 		fprintf(file, "Vectorial-OpenMP vector type: %s\n", params->getVector().c_str());
 		fprintf(file, "Vectorial-OpenMP F strategy: %s\n", params->getFStrategy().c_str());
+		fprintf(file, "Vectorial-OpenMP NW F strategy: %s\n", params->getNwFStrategy().c_str());
 	}
 }
 
